@@ -31,6 +31,26 @@
 
 #include <curl/curl.h>
 
+const char *configFile = sys.argv[1]; // one specified argument for config file using syntax "PARAM=XXXXXX"
+
+// default value for param
+int PERIOD_FETCH = 180 //The time (in seconds) between fetches of the various sites
+int NUM_FETCH = 1 //Number of fetch threads
+int NUM_PARSE = 1 //Number of parsing threads
+char *SEARCH_FILE = "Search.txt"	//File containing the search strings
+char *SITE_FILE = "Sites.txt"	//File containing the sites to query
+
+//queue that stores newly downloaded webpages to be processed by consumers
+
+//MAX NUMBER OF THREADS FOR DATA PROCESSING
+
+//max number of threads available for fetching
+
+// 1 thread each
+
+// Control C or SIGHUP for operation termination
+
+
 struct MemoryStruct {
   char *memory;
   size_t size;
