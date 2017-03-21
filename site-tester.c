@@ -33,41 +33,79 @@ WriteMemoryCallback(void *contents, size_t size, size_t nmemb, void *userp) {
 }
 
 int main(int argc, char *argv[]) {
+
+	// default value for param
+	int PERIOD_FETCH = 180; //The time (in seconds) between fetches of the various sites
+	int NUM_FETCH = 1; //Number of fetch threads
+	int NUM_PARSE = 1; //Number of parsing threads
+	char *SEARCH_FILE = "Search.txt"; //File containing the search strings
+	char *SITE_FILE = "Sites.txt";  //File containing the sites to query
+
 	if (argc == 2) {
 		// const char *configFile = argv[1]; // one specified argument for config file using syntax "PARAM=XXXXXX"
 
-        // We assume argv[1] is a filename to open
-        FILE *file = fopen( argv[1], "r" );
+		// We assume argv[1] is a filename to open
+		FILE *file = fopen( argv[1], "r" );
 
-        /* fopen returns 0, the NULL pointer, on failure */
-        if ( file == 0 ) {
-            printf( "Could not open file\n" );
-        } else {
-            int x;
-            /* read one character at a time from file, stopping at EOF, which
-               indicates the end of the file.  Note that the idiom of "assign
-               to a variable, check the value" used below works because
-               the assignment statement evaluates to the value assigned. */
-            while  ( ( x = fgetc( file ) ) != EOF ) {
-                printf( "%c", x );
-            }
-            fclose( file );
-        }		// Parse configFile and assign values to variables
-
-
-		// int PERIOD_FETCH = 180; //The time (in seconds) between fetches of the various sites
-		// int NUM_FETCH = 1; //Number of fetch threads
-		// int NUM_PARSE = 1; //Number of parsing threads
-		// char *SEARCH_FILE = "Search.txt"; //File containing the search strings
-		// char *SITE_FILE = "Sites.txt";  //File containing the sites to query
-	} else {
-		// default value for param
-		int PERIOD_FETCH = 180; //The time (in seconds) between fetches of the various sites
-		int NUM_FETCH = 1; //Number of fetch threads
-		int NUM_PARSE = 1; //Number of parsing threads
-		char *SEARCH_FILE = "Search.txt"; //File containing the search strings
-		char *SITE_FILE = "Sites.txt";  //File containing the sites to query
+		/* fopen returns 0, the NULL pointer, on failure */
+		if ( file == 0 ) {
+			printf( "Could not open file\n" );
+		} else {
+			const int STRMAX = 100;
+			char c;
+			char variable[STRMAX];
+			char value[STRMAX];
+			int equal = 0;
+			int i = 0;
+			/* read one character at a time from file, stopping at EOF, which
+			   indicates the end of the file.  Note that the idiom of "assign
+			   to a variable, check the value" used below works because
+			   the assignment statement evaluates to the value assigned. */
+			while  ( ( c = fgetc( file ) ) != EOF ) {
+				if (c == '=') {
+					equal = 1;
+					i = 0;
+				} else if (!equal) {
+					variable[i++] = c;
+					variable[i+1] = '\0';
+				} else if (c != '\n') {
+					value[i++] = c;
+					value[i+1] = '\0';
+				} else {
+					printf("Variable: %s\n", variable);
+					if (strcmp(variable, "PERIOD_FETCH")) {
+						PERIOD_FETCH = atoi(value);
+						printf( "PERIOD_FETCH: %d\n", PERIOD_FETCH );
+					} else if (strcmp(variable, "NUM_FETCH")) {
+						NUM_FETCH = atoi(value);
+						printf( "NUM_FETCH: %d\n", NUM_FETCH );
+					} else if (strcmp(variable, "NUM_PARSE")) {
+						NUM_PARSE = atoi(value);
+						printf( "NUM_PARSE: %d\n", NUM_PARSE );
+					} else if (strcmp(variable, "SEARCH_FILE")) {
+						strcpy(SEARCH_FILE, value);
+						printf( "SEARCH_FILE: %s\n", value );
+					} else if (strcmp(variable, "SITE_FILE")) {
+						strcpy(SITE_FILE, value);
+						printf( "SITE_FILE: %s\n", value );
+					}
+					variable[0] = 0;
+					value[0] = 0;
+					equal = 0;
+					// printf( "Variable: %s\n", variable );
+					// printf( "Value: %s\n", value );
+				}
+				// printf( "%s\n", value );
+			}
+			fclose( file );
+		}
 	}
+
+	printf("\nPERIOD_FETCH: %d\n", PERIOD_FETCH);
+	printf("NUM_FETCH: %d\n", NUM_FETCH);
+	printf("NUM_PARSE: %d\n", NUM_PARSE);
+	printf("SEARCH_FILE: %s\n", SEARCH_FILE);
+	printf("SITE_FILE: %s\n", SITE_FILE);
 
 
 	//queue that stores newly downloaded webpages to be processed by consumers
