@@ -183,7 +183,7 @@ int main(int argc, char *argv[]) {
 
 		for (i = frontSearch+1; i <= rearSearch; i++)
 			printf("%s\n", searchQueue[i]);
-		
+
 		if(deleteSearchQueue(searchQueue, &frontSearch, &rearSearch, data) != -1) printf("\n Deleted String from Queue is : %s\n", data);
 
 		for (i = frontSearch+1; i <= rearSearch; i++)
@@ -203,6 +203,8 @@ int main(int argc, char *argv[]) {
 	CURL *curl_handle;
 	CURLcode res;
 
+    while (frontSite != rearSite){ //FRONT OF LOOP
+
 	struct MemoryStruct chunk;
 
 	chunk.memory = malloc(1);  /* will be grown as needed by the realloc above */
@@ -210,11 +212,14 @@ int main(int argc, char *argv[]) {
 
 	curl_global_init(CURL_GLOBAL_ALL);
 
+//int counter;
+
 	/* init the curl session */
 	curl_handle = curl_easy_init();
 
+    printf("queue being fetched --> %s\n", siteQueue[frontSite]);
 	/* specify URL to get */
-	curl_easy_setopt(curl_handle, CURLOPT_URL, "https://www.nd.edu");
+	curl_easy_setopt(curl_handle, CURLOPT_URL, siteQueue[frontSite]);
 
 	/* send all data to this function  */
 	curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
@@ -248,6 +253,9 @@ int main(int argc, char *argv[]) {
 	curl_easy_cleanup(curl_handle);
 
 	free(chunk.memory);
+
+    deleteSiteQueue(siteQueue, &frontSite, &rearSite, data);
+} //END OF LOOP
 
 	/* we're done with libcurl, so clean it up */
 	curl_global_cleanup();
