@@ -8,6 +8,8 @@
 #include <string.h>
 #include <curl/curl.h>
 
+#define STRMAX 100
+
 struct MemoryStruct {
 	char *memory;
 	size_t size;
@@ -38,8 +40,8 @@ int main(int argc, char *argv[]) {
 	int PERIOD_FETCH = 180; //The time (in seconds) between fetches of the various sites
 	int NUM_FETCH = 1; //Number of fetch threads
 	int NUM_PARSE = 1; //Number of parsing threads
-	char *SEARCH_FILE = "Search.txt"; //File containing the search strings
-	char *SITE_FILE = "Sites.txt";  //File containing the sites to query
+	char SEARCH_FILE[STRMAX] = "Search.txt"; //File containing the search strings
+	char SITE_FILE[STRMAX] = "Sites.txt";  //File containing the sites to query
 
 	if (argc == 2) {
 		// const char *configFile = argv[1]; // one specified argument for config file using syntax "PARAM=XXXXXX"
@@ -51,7 +53,6 @@ int main(int argc, char *argv[]) {
 		if ( file == 0 ) {
 			printf( "Could not open file\n" );
 		} else {
-			const int STRMAX = 100;
 			char c;
 			char variable[STRMAX];
 			char value[STRMAX];
@@ -72,28 +73,24 @@ int main(int argc, char *argv[]) {
 					value[i++] = c;
 					value[i+1] = '\0';
 				} else {
-					printf("Variable: %s\n", variable);
-					if (strcmp(variable, "PERIOD_FETCH")) {
+					if (strcmp(variable, "PERIOD_FETCH") == 0) {
 						PERIOD_FETCH = atoi(value);
-						printf( "PERIOD_FETCH: %d\n", PERIOD_FETCH );
-					} else if (strcmp(variable, "NUM_FETCH")) {
+					} else if (strcmp(variable, "NUM_FETCH") == 0) {
 						NUM_FETCH = atoi(value);
-						printf( "NUM_FETCH: %d\n", NUM_FETCH );
-					} else if (strcmp(variable, "NUM_PARSE")) {
+					} else if (strcmp(variable, "NUM_PARSE") == 0) {
 						NUM_PARSE = atoi(value);
-						printf( "NUM_PARSE: %d\n", NUM_PARSE );
-					} else if (strcmp(variable, "SEARCH_FILE")) {
+					} else if (strcmp(variable, "SEARCH_FILE") == 0) {
 						strcpy(SEARCH_FILE, value);
-						printf( "SEARCH_FILE: %s\n", value );
-					} else if (strcmp(variable, "SITE_FILE")) {
+					} else if (strcmp(variable, "SITE_FILE") == 0) {
 						strcpy(SITE_FILE, value);
-						printf( "SITE_FILE: %s\n", value );
 					}
-					variable[0] = 0;
-					value[0] = 0;
+
+					for (i = 0; i < sizeof(variable); i++)
+						variable[i] = '\0';
+					for (i = 0; i < sizeof(value); i++)
+						value[i] = '\0';
 					equal = 0;
-					// printf( "Variable: %s\n", variable );
-					// printf( "Value: %s\n", value );
+					i = 0;
 				}
 				// printf( "%s\n", value );
 			}
@@ -105,7 +102,7 @@ int main(int argc, char *argv[]) {
 	printf("NUM_FETCH: %d\n", NUM_FETCH);
 	printf("NUM_PARSE: %d\n", NUM_PARSE);
 	printf("SEARCH_FILE: %s\n", SEARCH_FILE);
-	printf("SITE_FILE: %s\n", SITE_FILE);
+	printf("SITE_FILE: %s\n\n", SITE_FILE);
 
 
 	//queue that stores newly downloaded webpages to be processed by consumers
