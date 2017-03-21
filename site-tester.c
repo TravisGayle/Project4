@@ -118,8 +118,8 @@ int main(int argc, char *argv[]) {
     printf("Element removed: %s\n",site);*/
 
 	char siteQueue[QMAX][80], data[80];
-	int front = -1;
-	int rear = -1;
+	int frontSite = -1;
+	int rearSite = -1;
 
 	FILE *file = fopen( SITE_FILE, "r" );
 
@@ -136,26 +136,26 @@ int main(int argc, char *argv[]) {
 				url[i++] = c;
 				url[i+1] = '\0';
 			} else {
-				if(insertSiteQueue(siteQueue, &rear, url) == -1) printf("Queue is full\n");
+				if(insertSiteQueue(siteQueue, &rearSite, url) == -1) printf("Queue is full\n");
 				for (i = 0; i < sizeof(url); i++)
 					url[i] = '\0';
 				i = 0;
 			}
 		}
 		fclose( file );
-		if(insertSiteQueue(siteQueue, &rear, url) == -1) printf("Queue is full\n");
+		if(insertSiteQueue(siteQueue, &rearSite, url) == -1) printf("Queue is full\n");
 
-		for (i = front+1; i <= rear; i++)
+		for (i = frontSite+1; i <= rearSite; i++)
 			printf("%s\n", siteQueue[i]);
-		if(deleteSiteQueue(siteQueue, &front, &rear, data) != -1) printf("\n Deleted String from Queue is : %s\n", data);
+		if(deleteSiteQueue(siteQueue, &frontSite, &rearSite, data) != -1) printf("\n Deleted String from Queue is : %s\n", data);
 
-		for (i = front+1; i <= rear; i++)
+		for (i = frontSite+1; i <= rearSite; i++)
 			printf("%s\n", siteQueue[i]);
 	}
 
 	char searchQueue[QMAX][80];
-	front = -1;
-	rear = -1;
+	int frontSearch = -1;
+	int rearSearch = -1;
 
 	file = fopen( SEARCH_FILE, "r" );
 
@@ -172,20 +172,21 @@ int main(int argc, char *argv[]) {
 				phrase[i++] = c;
 				phrase[i+1] = '\0';
 			} else {
-				if(insertSearchQueue(searchQueue, &rear, phrase) == -1) printf("Queue is full\n");
+				if(insertSearchQueue(searchQueue, &rearSearch, phrase) == -1) printf("Queue is full\n");
 				for (i = 0; i < sizeof(phrase); i++)
 					phrase[i] = '\0';
 				i = 0;
 			}
 		}
 		fclose( file );
-		if(insertSearchQueue(searchQueue, &rear, phrase) == -1) printf("Queue is full\n");
+		if(insertSearchQueue(searchQueue, &rearSearch, phrase) == -1) printf("Queue is full\n");
 
-		for (i = front+1; i <= rear; i++)
+		for (i = frontSearch+1; i <= rearSearch; i++)
 			printf("%s\n", searchQueue[i]);
-		if(deleteSearchQueue(searchQueue, &front, &rear, data) != -1) printf("\n Deleted String from Queue is : %s\n", data);
+		
+		if(deleteSearchQueue(searchQueue, &frontSearch, &rearSearch, data) != -1) printf("\n Deleted String from Queue is : %s\n", data);
 
-		for (i = front+1; i <= rear; i++)
+		for (i = frontSearch+1; i <= rearSearch; i++)
 			printf("%s\n", searchQueue[i]);
 	}
 
