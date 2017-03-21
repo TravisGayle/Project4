@@ -101,7 +101,7 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
-	printf("\nPERIOD_FETCH: %d\n", PERIOD_FETCH);
+	printf("PERIOD_FETCH: %d\n", PERIOD_FETCH);
 	printf("NUM_FETCH: %d\n", NUM_FETCH);
 	printf("NUM_PARSE: %d\n", NUM_PARSE);
 	printf("SEARCH_FILE: %s\n", SEARCH_FILE);
@@ -145,12 +145,12 @@ int main(int argc, char *argv[]) {
 		fclose( file );
 		if(insertSiteQueue(siteQueue, &rearSite, url) == -1) printf("Queue is full\n");
 
-		for (i = frontSite+1; i <= rearSite; i++)
-			printf("%s\n", siteQueue[i]);
-		if(deleteSiteQueue(siteQueue, &frontSite, &rearSite, data) != -1) printf("\n Deleted String from Queue is : %s\n", data);
+		// for (i = frontSite+1; i <= rearSite; i++)
+		// 	printf("%s\n", siteQueue[i]);
+		// if(deleteSiteQueue(siteQueue, &frontSite, &rearSite, data) != -1) printf("\n Deleted String from Queue is : %s\n", data);
 
-		for (i = frontSite+1; i <= rearSite; i++)
-			printf("%s\n", siteQueue[i]);
+		// for (i = frontSite+1; i <= rearSite; i++)
+		// 	printf("%s\n", siteQueue[i]);
 	}
 
 	char searchQueue[QMAX][80];
@@ -181,13 +181,13 @@ int main(int argc, char *argv[]) {
 		fclose( file );
 		if(insertSearchQueue(searchQueue, &rearSearch, phrase) == -1) printf("Queue is full\n");
 
-		for (i = frontSearch+1; i <= rearSearch; i++)
-			printf("%s\n", searchQueue[i]);
+		// for (i = frontSearch+1; i <= rearSearch; i++)
+		// 	printf("%s\n", searchQueue[i]);
 
-		if(deleteSearchQueue(searchQueue, &frontSearch, &rearSearch, data) != -1) printf("\n Deleted String from Queue is : %s\n", data);
+		// if(deleteSearchQueue(searchQueue, &frontSearch, &rearSearch, data) != -1) printf("\n Deleted String from Queue is : %s\n", data);
 
-		for (i = frontSearch+1; i <= rearSearch; i++)
-			printf("%s\n", searchQueue[i]);
+		// for (i = frontSearch+1; i <= rearSearch; i++)
+		// 	printf("%s\n", searchQueue[i]);
 	}
 
 	//queue that stores newly downloaded webpages to be processed by consumers
@@ -203,7 +203,7 @@ int main(int argc, char *argv[]) {
 	CURL *curl_handle;
 	CURLcode res;
 
-    while (frontSite != rearSite){ //FRONT OF LOOP
+    while (frontSite+1 < rearSite){ //FRONT OF LOOP
 
 	struct MemoryStruct chunk;
 
@@ -217,9 +217,9 @@ int main(int argc, char *argv[]) {
 	/* init the curl session */
 	curl_handle = curl_easy_init();
 
-    printf("queue being fetched --> %s\n", siteQueue[frontSite]);
+    printf("queue being fetched --> %s\n", siteQueue[frontSite+1]);
 	/* specify URL to get */
-	curl_easy_setopt(curl_handle, CURLOPT_URL, siteQueue[frontSite]);
+	curl_easy_setopt(curl_handle, CURLOPT_URL, siteQueue[frontSite+1]);
 
 	/* send all data to this function  */
 	curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
@@ -245,8 +245,21 @@ int main(int argc, char *argv[]) {
 		 *
 		 * Do something nice with it!
 		 */
+		// printf("\n%s\n\n", chunk.memory);
+		int i = frontSearch + 1;
+		while (i <= rearSearch) {
+			int count = 0;
+			const char *tmp = chunk.memory;
+			while((tmp = strstr(tmp, searchQueue[i]))) {
+			   count++;
+			   tmp++;
+			}
 
-		printf("%lu bytes retrieved\n", (long)chunk.size);
+			printf("Found \"%s\" %d times.\n", searchQueue[i], count);
+			i++;
+		}
+
+		printf("%lu bytes retrieved\n\n", (long)chunk.size);
 	}
 
 	/* cleanup curl stuff */
