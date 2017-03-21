@@ -10,6 +10,7 @@
 #include "queueBuild.h"
 
 #define STRMAX 100
+#define QMAX 100
 
 struct MemoryStruct {
 	char *memory;
@@ -34,6 +35,30 @@ WriteMemoryCallback(void *contents, size_t size, size_t nmemb, void *userp) {
 
 	return realsize;
 }
+
+int insq(char queue[QMAX][80], int *rear, char data[80])
+{
+	if(*rear == QMAX -1)
+		return(-1);
+	else
+	{
+		*rear = *rear + 1;
+		strcpy(queue[*rear], data);
+		return(1);
+	} // else
+}; // insq
+
+int delq(char queue[QMAX][80], int *front, int *rear, char data[80])
+{
+	if(*front == *rear)
+		return(-1);
+	else
+	{
+		(*front)++;
+		strcpy(data, queue[*front]);
+		return(1);
+	} // else
+}; // delq
 
 int main(int argc, char *argv[]) {
 
@@ -114,6 +139,47 @@ int main(int argc, char *argv[]) {
     char *site = removeData();
 
     printf("Element removed: %s\n",site);
+
+	char queue[QMAX][80], data[80];
+	int front, rear, reply, option;
+
+	front = rear = -1;
+
+	// if(insq(queue, &rear, "nd.edu") == -1) printf("Queue is full\n");
+	// if(insq(queue, &rear, "cnn.com") == -1) printf("Queue is full\n");
+	// if(insq(queue, &rear, "pbs.org") == -1) printf("Queue is full\n");
+
+	// if(delq(queue, &front, &rear, data) == -1) printf("Queue is empty\n");
+	// else printf("Deleted String from Queue is : %s\n", data);
+
+
+	FILE *file = fopen( SITE_FILE, "r" );
+
+	/* fopen returns 0, the NULL pointer, on failure */
+	if ( file == 0 ) {
+		printf( "Could not open file\n" );
+	} else {
+		char c;
+		char url[STRMAX];
+		int i = 0;
+		/* read one character at a time from file, stopping at EOF, which
+		   indicates the end of the file.  Note that the idiom of "assign
+		   to a variable, check the value" used below works because
+		   the assignment statement evaluates to the value assigned. */
+		while  ( ( c = fgetc( file ) ) != EOF ) {
+			if (c != '\n' && c != ' ' && c != '\t') {
+				url[i++] = c;
+				url[i+1] = '\0';
+			} else {
+				if(insq(queue, &rear, url) == -1) printf("Queue is full\n");
+				for (i = 0; i < sizeof(url); i++)
+					url[i] = '\0';
+				i = 0;
+			}
+		}
+		fclose( file );
+	}
+
 	//queue that stores newly downloaded webpages to be processed by consumers
 
 	//MAX NUMBER OF THREADS FOR DATA PROCESSING
