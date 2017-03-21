@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <curl/curl.h>
+#include "queueBuild.h"
 
 #define STRMAX 100
 
@@ -104,7 +105,15 @@ int main(int argc, char *argv[]) {
 	printf("SEARCH_FILE: %s\n", SEARCH_FILE);
 	printf("SITE_FILE: %s\n\n", SITE_FILE);
 
+    insert("nd.edu");
+    insert("cnn.com");
+    insert("pbs.org");
+    if(isFull()){
+        printf("Queue is full!\n");
+    }
+    char *site = removeData();
 
+    printf("Element removed: %s\n",site);
 	//queue that stores newly downloaded webpages to be processed by consumers
 
 	//MAX NUMBER OF THREADS FOR DATA PROCESSING
