@@ -1,7 +1,8 @@
-/* Project 4: System for Verifying Web Placement
- * Authors: Nick Palutsis & Travis Gayle
- * Date: March 24, 2017
- */
+/* ********************************************** *
+ * Project 4: System for Verifying Web Placement  *
+ * Authors: Nick Palutsis & Travis Gayle          *
+ * Date: March 24, 2017                           *
+ * ********************************************** */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -36,42 +37,21 @@ WriteMemoryCallback(void *contents, size_t size, size_t nmemb, void *userp) {
 	return realsize;
 }
 
-int insq(char queue[QMAX][80], int *rear, char data[80])
-{
-	if(*rear == QMAX -1)
-		return(-1);
-	else
-	{
-		*rear = *rear + 1;
-		strcpy(queue[*rear], data);
-		return(1);
-	} // else
-}; // insq
-
-int delq(char queue[QMAX][80], int *front, int *rear, char data[80])
-{
-	if(*front == *rear)
-		return(-1);
-	else
-	{
-		(*front)++;
-		strcpy(data, queue[*front]);
-		return(1);
-	} // else
-}; // delq
+int insertSiteQueue(char siteQueue[QMAX][80], int *rear, char data[80]);
+int deleteSiteQueue(char siteQueue[QMAX][80], int *front, int *rear, char data[80]);
+int insertSearchQueue(char searchQueue[QMAX][80], int *rear, char data[80]);
+int deleteSearchQueue(char searchQueue[QMAX][80], int *front, int *rear, char data[80]);
 
 int main(int argc, char *argv[]) {
 
 	// default value for param
-	int PERIOD_FETCH = 180; //The time (in seconds) between fetches of the various sites
-	int NUM_FETCH = 1; //Number of fetch threads
-	int NUM_PARSE = 1; //Number of parsing threads
-	char SEARCH_FILE[STRMAX] = "Search.txt"; //File containing the search strings
-	char SITE_FILE[STRMAX] = "Sites.txt";  //File containing the sites to query
+	int PERIOD_FETCH = 180; 					//The time (in seconds) between fetches of the various sites
+	int NUM_FETCH = 1; 							//Number of fetch threads
+	int NUM_PARSE = 1; 							//Number of parsing threads
+	char SEARCH_FILE[STRMAX] = "Search.txt"; 	//File containing the search strings
+	char SITE_FILE[STRMAX] = "Sites.txt";  		//File containing the sites to query
 
 	if (argc == 2) {
-		// const char *configFile = argv[1]; // one specified argument for config file using syntax "PARAM=XXXXXX"
-
 		// We assume argv[1] is a filename to open
 		FILE *file = fopen( argv[1], "r" );
 
@@ -84,10 +64,7 @@ int main(int argc, char *argv[]) {
 			char value[STRMAX];
 			int equal = 0;
 			int i = 0;
-			/* read one character at a time from file, stopping at EOF, which
-			   indicates the end of the file.  Note that the idiom of "assign
-			   to a variable, check the value" used below works because
-			   the assignment statement evaluates to the value assigned. */
+			// read one character at a time from file, stopping at EOF
 			while  ( ( c = fgetc( file ) ) != EOF ) {
 				if (c == '=') {
 					equal = 1;
@@ -130,7 +107,7 @@ int main(int argc, char *argv[]) {
 	printf("SEARCH_FILE: %s\n", SEARCH_FILE);
 	printf("SITE_FILE: %s\n\n", SITE_FILE);
 
-    insert("nd.edu");
+/*    insert("nd.edu");
     insert("cnn.com");
     insert("pbs.org");
     if(isFull()){
@@ -138,20 +115,11 @@ int main(int argc, char *argv[]) {
     }
     char *site = removeData();
 
-    printf("Element removed: %s\n",site);
+    printf("Element removed: %s\n",site);*/
 
-	char queue[QMAX][80], data[80];
-	int front, rear, reply, option;
-
-	front = rear = -1;
-
-	// if(insq(queue, &rear, "nd.edu") == -1) printf("Queue is full\n");
-	// if(insq(queue, &rear, "cnn.com") == -1) printf("Queue is full\n");
-	// if(insq(queue, &rear, "pbs.org") == -1) printf("Queue is full\n");
-
-	// if(delq(queue, &front, &rear, data) == -1) printf("Queue is empty\n");
-	// else printf("Deleted String from Queue is : %s\n", data);
-
+	char siteQueue[QMAX][80], data[80];
+	int front = -1;
+	int rear = -1;
 
 	FILE *file = fopen( SITE_FILE, "r" );
 
@@ -162,22 +130,63 @@ int main(int argc, char *argv[]) {
 		char c;
 		char url[STRMAX];
 		int i = 0;
-		/* read one character at a time from file, stopping at EOF, which
-		   indicates the end of the file.  Note that the idiom of "assign
-		   to a variable, check the value" used below works because
-		   the assignment statement evaluates to the value assigned. */
+		// read one character at a time from file, stopping at EOF
 		while  ( ( c = fgetc( file ) ) != EOF ) {
 			if (c != '\n' && c != ' ' && c != '\t') {
 				url[i++] = c;
 				url[i+1] = '\0';
 			} else {
-				if(insq(queue, &rear, url) == -1) printf("Queue is full\n");
+				if(insertSiteQueue(siteQueue, &rear, url) == -1) printf("Queue is full\n");
 				for (i = 0; i < sizeof(url); i++)
 					url[i] = '\0';
 				i = 0;
 			}
 		}
 		fclose( file );
+		if(insertSiteQueue(siteQueue, &rear, url) == -1) printf("Queue is full\n");
+
+		for (i = front+1; i <= rear; i++)
+			printf("%s\n", siteQueue[i]);
+		if(deleteSiteQueue(siteQueue, &front, &rear, data) != -1) printf("\n Deleted String from Queue is : %s\n", data);
+
+		for (i = front+1; i <= rear; i++)
+			printf("%s\n", siteQueue[i]);
+	}
+
+	char searchQueue[QMAX][80];
+	front = -1;
+	rear = -1;
+
+	file = fopen( SEARCH_FILE, "r" );
+
+	/* fopen returns 0, the NULL pointer, on failure */
+	if ( file == 0 ) {
+		printf( "Could not open file\n" );
+	} else {
+		char c;
+		char phrase[STRMAX];
+		int i = 0;
+		// read one character at a time from file, stopping at EOF
+		while  ( ( c = fgetc( file ) ) != EOF ) {
+			if (c != '\n') {
+				phrase[i++] = c;
+				phrase[i+1] = '\0';
+			} else {
+				if(insertSearchQueue(searchQueue, &rear, phrase) == -1) printf("Queue is full\n");
+				for (i = 0; i < sizeof(phrase); i++)
+					phrase[i] = '\0';
+				i = 0;
+			}
+		}
+		fclose( file );
+		if(insertSearchQueue(searchQueue, &rear, phrase) == -1) printf("Queue is full\n");
+
+		for (i = front+1; i <= rear; i++)
+			printf("%s\n", searchQueue[i]);
+		if(deleteSearchQueue(searchQueue, &front, &rear, data) != -1) printf("\n Deleted String from Queue is : %s\n", data);
+
+		for (i = front+1; i <= rear; i++)
+			printf("%s\n", searchQueue[i]);
 	}
 
 	//queue that stores newly downloaded webpages to be processed by consumers
@@ -243,4 +252,48 @@ int main(int argc, char *argv[]) {
 	curl_global_cleanup();
 
 	return 0;
+}
+
+//=============================================================================
+//============================== FUNCTIONS ====================================
+//=============================================================================
+
+int insertSiteQueue(char siteQueue[QMAX][80], int *rear, char data[80]) {
+	if(*rear == QMAX -1)
+		return(-1);
+	else {
+		*rear = *rear + 1;
+		strcpy(siteQueue[*rear], data);
+		return(1);
+	}
+}
+
+int deleteSiteQueue(char siteQueue[QMAX][80], int *front, int *rear, char data[80]) {
+	if(*front == *rear)
+		return(-1);
+	else {
+		(*front)++;
+		strcpy(data, siteQueue[*front]);
+		return(1);
+	}
+}
+
+int insertSearchQueue(char searchQueue[QMAX][80], int *rear, char data[80]) {
+	if(*rear == QMAX -1)
+		return(-1);
+	else {
+		*rear = *rear + 1;
+		strcpy(searchQueue[*rear], data);
+		return(1);
+	}
+}
+
+int deleteSearchQueue(char searchQueue[QMAX][80], int *front, int *rear, char data[80]) {
+	if(*front == *rear)
+		return(-1);
+	else {
+		(*front)++;
+		strcpy(data, searchQueue[*front]);
+		return(1);
+	}
 }
