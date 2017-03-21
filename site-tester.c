@@ -245,7 +245,7 @@ int main(int argc, char *argv[]) {
 		 *
 		 * Do something nice with it!
 		 */
-		// printf("\n%s\n\n", chunk.memory);
+		printf("\n%s\n\n", chunk.memory);	// Print HTML
 		int i = frontSearch + 1;
 		while (i <= rearSearch) {
 			int count = 0;
