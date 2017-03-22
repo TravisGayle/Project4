@@ -9,6 +9,7 @@
 #include <string.h>
 #include <curl/curl.h>
 #include "queueBuild.h"
+#include <time.h>
 
 #define STRMAX 100
 #define QMAX 100
@@ -247,6 +248,13 @@ int main(int argc, char *argv[]) {
 		 */
 		printf("\n%s\n\n", chunk.memory);	// Print HTML
 		int i = frontSearch + 1;
+
+        char *sentence;
+        FILE * fp;
+
+        fp = fopen ("file.csv", "a");
+        sentence = "Time,Phrase,Site,Count\n";
+        fprintf(fp, "%s", sentence);
 		while (i <= rearSearch) {
 			int count = 0;
 			const char *tmp = chunk.memory;
@@ -256,9 +264,24 @@ int main(int argc, char *argv[]) {
 			}
 
 			printf("Found \"%s\" %d times.\n", searchQueue[i], count);
-			i++;
-		}
 
+
+            //PRODUCING TIME
+            time_t now;
+            time(&now);
+
+            struct tm* now_tm;
+            now_tm = localtime(&now);
+
+            char out[80];
+            strftime(out, 80, "%Y-%m-%d %H:%M:%S", now_tm);
+
+            fprintf(fp, "%s,%s,%s,%d\n", out,searchQueue[i],siteQueue[frontSite+1], count);
+            i++;
+
+        }
+            fprintf(fp, "%s", "\n");
+   fclose(fp);
 		printf("%lu bytes retrieved\n\n", (long)chunk.size);
 	}
 
