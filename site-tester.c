@@ -260,7 +260,7 @@ int main(int argc, char *argv[]) {
 	        fprintf(fp, "%s", sentence);
 			while (i <= rearSearch) {
 				int count = 0;
-				const char *tmp = chunk.memory;
+				const char *tmp = parseQueue[currentChunk].memory;
 				while((tmp = strstr(tmp, searchQueue[i]))) {
 				   count++;
 				   tmp++;
@@ -282,9 +282,9 @@ int main(int argc, char *argv[]) {
 	            i++;
 
 	        }
-	            fprintf(fp, "%s", "\n");
-	   fclose(fp);
-			printf("%lu bytes retrieved\n\n", (long)chunk.size);
+            fprintf(fp, "%s", "\n");
+	   		fclose(fp);
+			printf("%lu bytes retrieved\n\n", (long)parseQueue[currentChunk].size);
 		}
 
 		/* cleanup curl stuff */
