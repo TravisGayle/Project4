@@ -20,6 +20,13 @@ struct MemoryStruct {
 	size_t size;
 };
 
+struct thread_args{
+    pthread_t id;
+    char (*fetchQueue)[80], (*searchQueue)[80];
+    struct MemoryStruct *parseQueue;
+    int numSites, frontSite, rearSite, frontSearch, rearSearch;
+};
+
 static size_t
 WriteMemoryCallback(void *contents, size_t size, size_t nmemb, void *userp) {
 	size_t realsize = size * nmemb;
@@ -43,6 +50,8 @@ int insertFetchQueue(char fetchQueue[QMAX][80], int *rear, char data[80]);
 int deleteFetchQueue(char fetchQueue[QMAX][80], int *front, int *rear, char data[80]);
 int insertSearchQueue(char searchQueue[QMAX][80], int *rear, char data[80]);
 int deleteSearchQueue(char searchQueue[QMAX][80], int *front, int *rear, char data[80]);
+void* fetch( struct thread_args *fetchArgs);
+void* parse( struct thread_args *parseArgs);
 
 int main(int argc, char *argv[]) {
 
@@ -189,108 +198,42 @@ int main(int argc, char *argv[]) {
 
 	// Control C or SIGHUP for operation termination
 
-	CURL *curl_handle;
-	CURLcode res;
-
-	int currentChunk = 0;
 	struct MemoryStruct parseQueue[numSites];
 
-    while (currentChunk <= numSites){ //FRONT OF LOOP
+	struct thread_args *fetchArgs;
+    fetchArgs = calloc(NUM_FETCH, sizeof(struct thread_args));
+    int i;
 
-		struct MemoryStruct chunk;
+	for(i = 0; i < NUM_FETCH; ++i){
+        fetchArgs[i].fetchQueue = fetchQueue;
+        fetchArgs[i].searchQueue = searchQueue;
+        fetchArgs[i].parseQueue = parseQueue;
+        fetchArgs[i].numSites = numSites;
+        fetchArgs[i].frontSite = frontSite;
+        fetchArgs[i].rearSite = rearSite;
+        fetchArgs[i].frontSearch = frontSearch;
+        fetchArgs[i].rearSearch = rearSearch;
+ 
+        // (void) pthread_create(&fetchArgs[i].id,NULL, &fetch, &fetchArgs[i]);
+        fetch(&fetchArgs[i]);
+    }
 
-		chunk.memory = malloc(1);  /* will be grown as needed by the realloc above */
-		chunk.size = 0;    /* no data at this point */
+	struct thread_args *parseArgs;
+    parseArgs = calloc(NUM_PARSE, sizeof(struct thread_args));
 
-		curl_global_init(CURL_GLOBAL_ALL);
-
-		//int counter;
-
-		/* init the curl session */
-		curl_handle = curl_easy_init();
-
-	    printf("queue being fetched --> %s\n", fetchQueue[currentChunk]);
-		/* specify URL to get */
-		curl_easy_setopt(curl_handle, CURLOPT_URL, fetchQueue[currentChunk]);
-
-		/* send all data to this function  */
-		curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
-
-		/* we pass our 'chunk' struct to the callback function */
-		curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, (void *)&chunk);
-
-		/* some servers don't like requests that are made without a user-agent
-		 field, so we provide one */
-		curl_easy_setopt(curl_handle, CURLOPT_USERAGENT, "libcurl-agent/1.0");
-
-		/* get it! */
-		res = curl_easy_perform(curl_handle);
-
-		/* check for errors */
-		if(res != CURLE_OK) {
-			fprintf(stderr, "curl_easy_perform() failed: %s\n",
-					curl_easy_strerror(res));
-		} else {
-			/*
-			 * Now, our chunk.memory points to a memory block that is chunk.size
-			 * bytes big and contains the remote file.
-			 *
-			 * Do something nice with it!
-			 */
-			parseQueue[currentChunk] = chunk;
-			currentChunk++;
-		}
-
-		/* cleanup curl stuff */
-		curl_easy_cleanup(curl_handle);
-
-		// free(chunk.memory);
-	    // deleteFetchQueue(fetchQueue, &frontSite, &rearSite, data);
-	}
-
-	currentChunk = 0;
-	while (currentChunk <= numSites) {
-		int i = frontSearch + 1;
-		
-		if (printHTML) printf("\n%s\n\n", parseQueue[currentChunk].memory);
-
-        char *sentence;
-        FILE * fp;
-
-        fp = fopen ("file.csv", "a");
-        sentence = "Time,Phrase,Site,Count\n";
-        fprintf(fp, "%s", sentence);
-		while (i <= rearSearch) {
-			int count = 0;
-			const char *tmp = parseQueue[currentChunk].memory;
-			while((tmp = strstr(tmp, searchQueue[i]))) {
-			   count++;
-			   tmp++;
-			}
-
-			printf("Found \"%s\" %d times.\n", searchQueue[i], count);
-
-            //PRODUCING TIME
-            time_t now;
-            time(&now);
-
-            struct tm* now_tm;
-            now_tm = localtime(&now);
-
-            char out[80];
-            strftime(out, 80, "%Y-%m-%d %H:%M:%S", now_tm);
-
-            fprintf(fp, "%s,%s,%s,%d\n", out, searchQueue[i], fetchQueue[frontSite+1], count);
-            i++;
-
-        }
-        fprintf(fp, "%s", "\n");
-   		fclose(fp);
-		printf("%lu bytes retrieved\n\n", (long)parseQueue[currentChunk].size);
-		free(parseQueue[currentChunk].memory);
-		deleteFetchQueue(fetchQueue, &frontSite, &rearSite, data);
-		currentChunk++;
-	}
+	for(i = 0; i < NUM_PARSE; ++i){
+        parseArgs[i].fetchQueue = fetchQueue;
+        parseArgs[i].searchQueue = searchQueue;
+        parseArgs[i].parseQueue = parseQueue;
+        parseArgs[i].numSites = numSites;
+        parseArgs[i].frontSite = frontSite;
+        parseArgs[i].rearSite = rearSite;
+        parseArgs[i].frontSearch = frontSearch;
+        parseArgs[i].rearSearch = rearSearch;
+ 
+        // (void) pthread_create(&parseArgs[i].id,NULL, &parse, &parseArgs[i]);
+        parse(&parseArgs[i]);
+    }
 
 	/* we're done with libcurl, so clean it up */
 	curl_global_cleanup();
@@ -339,5 +282,113 @@ int deleteSearchQueue(char searchQueue[QMAX][80], int *front, int *rear, char da
 		(*front)++;
 		strcpy(data, searchQueue[*front]);
 		return(1);
+	}
+}
+
+void* fetch(struct thread_args *fetchArgs) {
+	CURL *curl_handle;
+	CURLcode res;
+
+	int currentChunk = 0;
+
+	printf("%s\n", fetchArgs->fetchQueue[0]);
+	
+	while (currentChunk <= fetchArgs->numSites){ //FRONT OF LOOP
+
+		struct MemoryStruct chunk;
+
+		chunk.memory = malloc(1);  /* will be grown as needed by the realloc above */
+		chunk.size = 0;    /* no data at this point */
+
+		curl_global_init(CURL_GLOBAL_ALL);
+
+		//int counter;
+
+		/* init the curl session */
+		curl_handle = curl_easy_init();
+
+	    printf("queue being fetched --> %s\t%d\n", fetchArgs->fetchQueue[currentChunk], currentChunk);
+		/* specify URL to get */
+		curl_easy_setopt(curl_handle, CURLOPT_URL, fetchArgs->fetchQueue[currentChunk]);
+
+		/* send all data to this function  */
+		curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
+
+		/* we pass our 'chunk' struct to the callback function */
+		curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, (void *)&chunk);
+
+		/* some servers don't like requests that are made without a user-agent
+		 field, so we provide one */
+		curl_easy_setopt(curl_handle, CURLOPT_USERAGENT, "libcurl-agent/1.0");
+
+		/* get it! */
+		res = curl_easy_perform(curl_handle);
+
+		/* check for errors */
+		if(res != CURLE_OK) {
+			fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
+		} else {
+			/*
+			 * Now, our chunk.memory points to a memory block that is chunk.size
+			 * bytes big and contains the remote file.
+			 *
+			 * Do something nice with it!
+			 */
+			fetchArgs->parseQueue[currentChunk] = chunk;
+			currentChunk++;
+		}
+
+		/* cleanup curl stuff */
+		curl_easy_cleanup(curl_handle);
+
+		// free(chunk.memory);
+	    // deleteFetchQueue(fetchQueue, &frontSite, &rearSite, data);
+	}
+}
+
+void* parse(struct thread_args *parseArgs) {
+	int currentChunk = 0;
+	while (currentChunk <= parseArgs->numSites) {
+		int i = parseArgs->frontSearch + 1;
+		
+		// if (printHTML) printf("\n%s\n\n", parseArgs->parseQueue[currentChunk].memory);
+
+	    char *sentence;
+	    FILE * fp;
+
+	    fp = fopen ("file.csv", "a");
+	    sentence = "Time,Phrase,Site,Count\n";
+	    fprintf(fp, "%s", sentence);
+		while (i <= parseArgs->rearSearch) {
+			int count = 0;
+			const char *tmp = parseArgs->parseQueue[currentChunk].memory;
+			while((tmp = strstr(tmp, parseArgs->searchQueue[i]))) {
+			   count++;
+			   tmp++;
+			}
+
+			printf("Found \"%s\" %d times.\n", parseArgs->searchQueue[i], count);
+
+	        //PRODUCING TIME
+	        time_t now;
+	        time(&now);
+
+	        struct tm* now_tm;
+	        now_tm = localtime(&now);
+
+	        char out[80];
+	        strftime(out, 80, "%Y-%m-%d %H:%M:%S", now_tm);
+
+	        fprintf(fp, "%s,%s,%s,%d\n", out, parseArgs->searchQueue[i], parseArgs->fetchQueue[parseArgs->frontSite+1], count);
+	        i++;
+
+	    }
+	    fprintf(fp, "%s", "\n");
+			fclose(fp);
+		printf("%lu bytes retrieved\n\n", (long)parseArgs->parseQueue[currentChunk].size);
+		free(parseArgs->parseQueue[currentChunk].memory);
+		char data[80];
+		deleteFetchQueue(parseArgs->fetchQueue, &parseArgs->frontSite, &parseArgs->rearSite, data);
+		currentChunk++;
 	}
 }
