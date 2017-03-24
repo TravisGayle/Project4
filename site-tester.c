@@ -41,8 +41,6 @@ WriteMemoryCallback(void *contents, size_t size, size_t nmemb, void *userp) {
 
 int insertFetchQueue(char fetchQueue[QMAX][80], int *rear, char data[80]);
 int deleteFetchQueue(char fetchQueue[QMAX][80], int *front, int *rear, char data[80]);
-// int insertParseQueue(char parseQueue[QMAX][80], int *rear, struct MemoryStruct data);
-// int deleteParseQueue(char parseQueue[QMAX][80], int *front, int *rear, struct MemoryStruct data);
 int insertSearchQueue(char searchQueue[QMAX][80], int *rear, char data[80]);
 int deleteSearchQueue(char searchQueue[QMAX][80], int *front, int *rear, char data[80]);
 
@@ -142,13 +140,6 @@ int main(int argc, char *argv[]) {
 		}
 		fclose( file );
 		if(insertFetchQueue(fetchQueue, &rearSite, url) == -1) printf("Queue is full\n");
-
-		// for (i = frontSite+1; i <= rearSite; i++)
-		// 	printf("%s\n", fetchQueue[i]);
-		// if(deleteFetchQueue(fetchQueue, &frontSite, &rearSite, data) != -1) printf("\n Deleted String from Queue is : %s\n", data);
-
-		// for (i = frontSite+1; i <= rearSite; i++)
-		// 	printf("%s\n", fetchQueue[i]);
 	}
 
 	char searchQueue[QMAX][80];
@@ -254,9 +245,8 @@ int main(int argc, char *argv[]) {
 		curl_easy_cleanup(curl_handle);
 
 		// free(chunk.memory);
-
 	    // deleteFetchQueue(fetchQueue, &frontSite, &rearSite, data);
-	} //END OF LOOP
+	}
 
 	currentChunk = 0;
 	while (currentChunk <= numSites) {
@@ -331,26 +321,6 @@ int deleteFetchQueue(char fetchQueue[QMAX][80], int *front, int *rear, char data
 		return(1);
 	}
 }
-
-// int insertParseQueue(struct MemoryStruct array[], int *rear, struct MemoryStruct data) {
-// 	if(*rear == QMAX -1)
-// 		return(-1);
-// 	else {
-// 		*rear = *rear + 1;
-// 		strcpy(array[*rear], data);
-// 		return(1);
-// 	}
-// }
-
-// int deleteParseQueue(struct MemoryStruct array[], int *front, int *rear, struct MemoryStruct data) {
-// 	if(*front == *rear)
-// 		return(-1);
-// 	else {
-// 		(*front)++;
-// 		strcpy(data, array[*front]);
-// 		return(1);
-// 	}
-// }
 
 int insertSearchQueue(char searchQueue[QMAX][80], int *rear, char data[80]) {
 	if(*rear == QMAX -1)
