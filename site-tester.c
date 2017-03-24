@@ -56,7 +56,7 @@ int main(int argc, char *argv[]) {
 	char SITE_FILE[STRMAX] = "Sites.txt";  		//File containing the sites to query
 
 	int numSites = 0;
-	int printHTML = 0;
+	int printHTML = 1;
 
 	if (argc == 2) {
 		// We assume argv[1] is a filename to open
@@ -204,7 +204,7 @@ int main(int argc, char *argv[]) {
 	int currentChunk = 0;
 	struct MemoryStruct parseQueue[numSites];
 
-    while (frontSite+1 < rearSite){ //FRONT OF LOOP
+    while (currentChunk <= numSites){ //FRONT OF LOOP
 
 		struct MemoryStruct chunk;
 
@@ -218,9 +218,9 @@ int main(int argc, char *argv[]) {
 		/* init the curl session */
 		curl_handle = curl_easy_init();
 
-	    printf("queue being fetched --> %s\n", fetchQueue[frontSite+1]);
+	    printf("queue being fetched --> %s\n", fetchQueue[currentChunk]);
 		/* specify URL to get */
-		curl_easy_setopt(curl_handle, CURLOPT_URL, fetchQueue[frontSite+1]);
+		curl_easy_setopt(curl_handle, CURLOPT_URL, fetchQueue[currentChunk]);
 
 		/* send all data to this function  */
 		curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
@@ -246,56 +246,61 @@ int main(int argc, char *argv[]) {
 			 *
 			 * Do something nice with it!
 			 */
-
-			int i = frontSearch + 1;
-			
 			parseQueue[currentChunk] = chunk;
-			if (printHTML) printf("\n%s\n\n", parseQueue[currentChunk].memory);
-
-	        char *sentence;
-	        FILE * fp;
-
-	        fp = fopen ("file.csv", "a");
-	        sentence = "Time,Phrase,Site,Count\n";
-	        fprintf(fp, "%s", sentence);
-			while (i <= rearSearch) {
-				int count = 0;
-				const char *tmp = parseQueue[currentChunk].memory;
-				while((tmp = strstr(tmp, searchQueue[i]))) {
-				   count++;
-				   tmp++;
-				}
-
-				printf("Found \"%s\" %d times.\n", searchQueue[i], count);
-
-	            //PRODUCING TIME
-	            time_t now;
-	            time(&now);
-
-	            struct tm* now_tm;
-	            now_tm = localtime(&now);
-
-	            char out[80];
-	            strftime(out, 80, "%Y-%m-%d %H:%M:%S", now_tm);
-
-	            fprintf(fp, "%s,%s,%s,%d\n", out, searchQueue[i], fetchQueue[frontSite+1], count);
-	            i++;
-
-	        }
-            fprintf(fp, "%s", "\n");
-	   		fclose(fp);
-			printf("%lu bytes retrieved\n\n", (long)parseQueue[currentChunk].size);
+			currentChunk++;
 		}
 
 		/* cleanup curl stuff */
 		curl_easy_cleanup(curl_handle);
 
-		free(chunk.memory);
+		// free(chunk.memory);
 
-	    deleteFetchQueue(fetchQueue, &frontSite, &rearSite, data);
-
-	    currentChunk++;
+	    // deleteFetchQueue(fetchQueue, &frontSite, &rearSite, data);
 	} //END OF LOOP
+
+	currentChunk = 0;
+	while (currentChunk <= numSites) {
+		int i = frontSearch + 1;
+		
+		if (printHTML) printf("\n%s\n\n", parseQueue[currentChunk].memory);
+
+        char *sentence;
+        FILE * fp;
+
+        fp = fopen ("file.csv", "a");
+        sentence = "Time,Phrase,Site,Count\n";
+        fprintf(fp, "%s", sentence);
+		while (i <= rearSearch) {
+			int count = 0;
+			const char *tmp = parseQueue[currentChunk].memory;
+			while((tmp = strstr(tmp, searchQueue[i]))) {
+			   count++;
+			   tmp++;
+			}
+
+			printf("Found \"%s\" %d times.\n", searchQueue[i], count);
+
+            //PRODUCING TIME
+            time_t now;
+            time(&now);
+
+            struct tm* now_tm;
+            now_tm = localtime(&now);
+
+            char out[80];
+            strftime(out, 80, "%Y-%m-%d %H:%M:%S", now_tm);
+
+            fprintf(fp, "%s,%s,%s,%d\n", out, searchQueue[i], fetchQueue[frontSite+1], count);
+            i++;
+
+        }
+        fprintf(fp, "%s", "\n");
+   		fclose(fp);
+		printf("%lu bytes retrieved\n\n", (long)parseQueue[currentChunk].size);
+		free(parseQueue[currentChunk].memory);
+		deleteFetchQueue(fetchQueue, &frontSite, &rearSite, data);
+		currentChunk++;
+	}
 
 	/* we're done with libcurl, so clean it up */
 	curl_global_cleanup();
