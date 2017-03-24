@@ -54,7 +54,7 @@ int main(int argc, char *argv[]) {
 	char SITE_FILE[STRMAX] = "Sites.txt";  		//File containing the sites to query
 
 	int numSites = 0;
-	int printHTML = 1;
+	int printHTML = 0;
 
 	if (argc == 2) {
 		// We assume argv[1] is a filename to open
