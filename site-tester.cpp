@@ -11,8 +11,9 @@
 #include <time.h>
 #include <pthread.h>
 #include "queueBuild.h"
-// #include <queue>
-
+#include <queue>
+#include <string>
+using namespace std;
 
 #define STRMAX 100
 #define QMAX 100
@@ -21,7 +22,8 @@ char urlQueue[QMAX][80];
 char fetchQueue[QMAX][80];
 char searchQueue[QMAX][80];
 char parseQueue[QMAX][80];
-// queue <string> URLQueue;
+
+
 
 struct MemoryStruct {
 	char *memory;
@@ -35,12 +37,20 @@ struct thread_args{
     int numSites, frontSite, rearSite, frontSearch, rearSearch;
 };
 
+struct responseStruct{
+	string url;
+	char *response;
+};
+
+queue <string> URLQueue;
+queue <responseStruct> bufferQueue;
+
 static size_t
 WriteMemoryCallback(void *contents, size_t size, size_t nmemb, void *userp) {
 	size_t realsize = size * nmemb;
 	struct MemoryStruct *mem = (struct MemoryStruct *)userp;
 
-	mem->memory = realloc(mem->memory, mem->size + realsize + 1);
+	mem->memory = (char *) realloc(mem->memory, mem->size + realsize + 1);
 	if(mem->memory == NULL) {
 		/* out of memory! */
 		printf("not enough memory (realloc returned NULL)\n");
@@ -151,9 +161,8 @@ int main(int argc, char *argv[]) {
 				url[i+1] = '\0';
 
 			} else {
-				// URLQueue.push (url);
-				printf("%s\n", url);
-
+				URLQueue.push(url);
+				// printf("%s\n", url);
 				if(insertFetchQueue(fetchQueue, &rearSite, url) == -1) printf("Queue is full\n");
 				for (i = 0; i < sizeof(url); i++)
 					url[i] = '\0';
@@ -161,7 +170,6 @@ int main(int argc, char *argv[]) {
 				numSites++;
 
 			}
-			printf("%s\n", fetchQueue[i]);
 
 		}
 		fclose( file );
@@ -222,7 +230,7 @@ int main(int argc, char *argv[]) {
 	struct MemoryStruct parseQueue[numSites];
 
 	struct thread_args *fetchArgs;
-    fetchArgs = calloc(NUM_FETCH, sizeof(struct thread_args));
+    fetchArgs = (struct thread_args *) calloc(NUM_FETCH, sizeof(struct thread_args));
     int i;
 
 	for(i = 0; i < NUM_FETCH; ++i){
@@ -234,11 +242,12 @@ int main(int argc, char *argv[]) {
         fetchArgs[i].rearSite = rearSite;
         fetchArgs[i].frontSearch = frontSearch;
         fetchArgs[i].rearSearch = rearSearch;
-
+		pthread_t temp;
+        fetchArgs[i].id = temp;
 
 
         // (void) pthread_create(&fetchArgs[i].id,NULL, &fetch, &fetchArgs[i]);
-		(void) pthread_create(&fetchArgs[i].id, NULL, (void *) &fetch,&fetchArgs[i]);
+		pthread_create(&fetchArgs[i].id, NULL, fetch,NULL);
 		//fetch(&fetchArgs[i]);
     }
 
@@ -265,7 +274,7 @@ int main(int argc, char *argv[]) {
         parseArgs[i].rearSearch = rearSearch;
 
 
-		(void) pthread_create(&parseArgs[i].id, NULL, (void *) &parse,&parseArgs[i]);
+		pthread_create(&parseArgs[i].id, NULL,  &parse,&parseArgs[i]);
         //parse(&parseArgs[i]);
         // (void) pthread_create(&parseArgs[i].id,NULL, &parse, &parseArgs[i]);
 
@@ -330,15 +339,15 @@ int deleteSearchQueue(char searchQueue[QMAX][80], int *front, int *rear, char da
 	}
 }
 
-void* fetch(struct thread_args *fetchArgs) {
+void* fetch(void * weenie) {
 	CURL *curl_handle;
 	CURLcode res;
 
-	int currentChunk = 0;
+	//int currentChunk = 0;
 
-	printf("%s\n", fetchArgs->fetchQueue[0]);
+//	printf("%s\n", fetchArgs->fetchQueue[0]);
 
-	while (currentChunk <= fetchArgs->numSites){ //FRONT OF LOOP
+//	while (currentChunk <= fetchArgs->numSites){ //FRONT OF LOOP
 
 		struct MemoryStruct chunk;
 
@@ -352,9 +361,11 @@ void* fetch(struct thread_args *fetchArgs) {
 		/* init the curl session */
 		curl_handle = curl_easy_init();
 
-	    printf("queue being fetched --> %s\t%d\n", fetchArgs->fetchQueue[currentChunk], currentChunk);
+		string nextURL = URLQueue.front();
+		URLQueue.pop();
+	    //printf("queue being fetched --> %s\t%d\n", fetchArgs->fetchQueue[currentChunk], currentChunk);
 		/* specify URL to get */
-		curl_easy_setopt(curl_handle, CURLOPT_URL, fetchArgs->fetchQueue[currentChunk]);
+		curl_easy_setopt(curl_handle, CURLOPT_URL, nextURL);
 
 		/* send all data to this function  */
 		curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
@@ -379,8 +390,10 @@ void* fetch(struct thread_args *fetchArgs) {
 			 *
 			 * Do something nice with it!
 			 */
-			fetchArgs->parseQueue[currentChunk] = chunk;
-			currentChunk++;
+			responseStruct r {url ,chunk.memory}
+
+			bufferQueue.push(r);
+
 		}
 
 		/* cleanup curl stuff */
@@ -388,7 +401,7 @@ void* fetch(struct thread_args *fetchArgs) {
 
 		// free(chunk.memory);
 	    // deleteFetchQueue(fetchQueue, &frontSite, &rearSite, data);
-	}
+	//}
 
 	return 0;
 }
@@ -408,8 +421,12 @@ void* parse(struct thread_args *parseArgs) {
 	    fprintf(fp, "%s", sentence);
 		while (i <= parseArgs->rearSearch) {
 			int count = 0;
-			const char *tmp = parseArgs->parseQueue[currentChunk].memory;
-			while((tmp = strstr(tmp, parseArgs->searchQueue[i]))) {
+			//const char *tmp = parseArgs->parseQueue[currentChunk].memory;
+			responseStruct tmp = bufferQueue.front();
+			bufferQueue.pop();
+
+
+			while((tmp.response = strstr(tmp.response, parseArgs->searchQueue[i]))) {
 			   count++;
 			   tmp++;
 			}
