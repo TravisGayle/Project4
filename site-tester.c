@@ -21,10 +21,17 @@ char urlQueue[QMAX][80];
 char fetchQueue[QMAX][80];
 char searchQueue[QMAX][80];
 char parseQueue[QMAX][80];
+pthread_mutex_t the_mutex;
+pthread_cond_t condc, condp;
+int numFetchSites = 0;
+int numParseSites = 0;
+int currentFetch = 0;
+int currentParse = 0;
 // queue <string> URLQueue;
 
 struct MemoryStruct {
 	char *memory;
+	char *url;
 	size_t size;
 };
 
@@ -32,7 +39,7 @@ struct thread_args{
     pthread_t id;
     char (*fetchQueue)[80], (*searchQueue)[80];
     struct MemoryStruct *parseQueue;
-    int numSites, frontSite, rearSite, frontSearch, rearSearch;
+    int numSites, frontSite, rearSite, frontSearch, rearSearch, currentChunk;
 };
 
 static size_t
@@ -60,8 +67,11 @@ int insertSearchQueue(char searchQueue[QMAX][80], int *rear, char data[80]);
 int deleteSearchQueue(char searchQueue[QMAX][80], int *front, int *rear, char data[80]);
 void* fetch( struct thread_args *fetchArgs);
 void* parse( struct thread_args *parseArgs);
+void display_message(int s);
 
 int main(int argc, char *argv[]) {
+	signal(SIGALRM,display_message);
+	alarm(1);
 
 	// default value for param
 	int PERIOD_FETCH = 180; 					//The time (in seconds) between fetches of the various sites
@@ -152,16 +162,17 @@ int main(int argc, char *argv[]) {
 
 			} else {
 				// URLQueue.push (url);
-				printf("%s\n", url);
+				// printf("%s\n", url);
 
 				if(insertFetchQueue(fetchQueue, &rearSite, url) == -1) printf("Queue is full\n");
 				for (i = 0; i < sizeof(url); i++)
 					url[i] = '\0';
 				i = 0;
 				numSites++;
+				numFetchSites++;
 
 			}
-			printf("%s\n", fetchQueue[i]);
+			// printf("%s\n", fetchQueue[i]);
 
 		}
 		fclose( file );
@@ -200,7 +211,7 @@ int main(int argc, char *argv[]) {
 				for (i = 0; i < sizeof(phrase); i++)
 					phrase[i] = '\0';
 				i = 0;
-				printf("%s", phrase);
+				// printf("%s", phrase);
 			}
 
 		}
@@ -218,66 +229,77 @@ int main(int argc, char *argv[]) {
 
 //locking, when pushing and pulling to the Queue
 //sites should be operated on one at a time
+	currentFetch = 0;
+	currentParse = 0;
+	while (currentParse <= numSites || currentFetch <= numSites) {
 
-	struct MemoryStruct parseQueue[numSites];
+		pthread_mutex_init(&the_mutex, NULL);	
+		pthread_cond_init(&condc, NULL);		/* Initialize consumer condition variable */
+		pthread_cond_init(&condp, NULL);		/* Initialize producer condition variable */
 
-	struct thread_args *fetchArgs;
-    fetchArgs = calloc(NUM_FETCH, sizeof(struct thread_args));
-    int i;
+		struct MemoryStruct parseQueue[numSites];
 
-	for(i = 0; i < NUM_FETCH; ++i){
-        fetchArgs[i].fetchQueue = fetchQueue;
-        fetchArgs[i].searchQueue = searchQueue;
-        fetchArgs[i].parseQueue = parseQueue;
-        fetchArgs[i].numSites = numSites;
-        fetchArgs[i].frontSite = frontSite;
-        fetchArgs[i].rearSite = rearSite;
-        fetchArgs[i].frontSearch = frontSearch;
-        fetchArgs[i].rearSearch = rearSearch;
+		struct thread_args *fetchArgs;
+	    fetchArgs = calloc(NUM_FETCH, sizeof(struct thread_args));
+	    int i;
 
+		for(i = 0; i < NUM_FETCH; ++i){
+			if (currentFetch <= numSites) {
+		        fetchArgs[i].fetchQueue = fetchQueue;
+		        fetchArgs[i].searchQueue = searchQueue;
+		        fetchArgs[i].parseQueue = parseQueue;
+		        fetchArgs[i].numSites = numSites;
+		        fetchArgs[i].frontSite = frontSite;
+		        fetchArgs[i].rearSite = rearSite;
+		        fetchArgs[i].frontSearch = frontSearch;
+		        fetchArgs[i].rearSearch = rearSearch;
+		        fetchArgs[i].currentChunk = currentFetch;
 
+		        // (void) pthread_create(&fetchArgs[i].id,NULL, &fetch, &fetchArgs[i]);
+				(void) pthread_create(&fetchArgs[i].id, NULL, (void *) &fetch,&fetchArgs[i]);
+				//fetch(&fetchArgs[i]);
+				currentFetch++;
+			}
+	    }
 
-        // (void) pthread_create(&fetchArgs[i].id,NULL, &fetch, &fetchArgs[i]);
-		(void) pthread_create(&fetchArgs[i].id, NULL, (void *) &fetch,&fetchArgs[i]);
-		//fetch(&fetchArgs[i]);
-    }
+		for (i = 0; i < NUM_FETCH; ++i ){
+			// pthread_join function takes two parameters:
+			// 1. the pthread_t variable used when pthread_create was called
+			// 2. a pointer to the return value pointer
 
-	for (i = 0; i < NUM_FETCH; ++i ){
-		// pthread_join function takes two parameters:
-		// 1. the pthread_t variable used when pthread_create was called
-		// 2. a pointer to the return value pointer
-
-		(void) pthread_join(fetchArgs[i].id, NULL);
-	}
-
-
-	struct thread_args *parseArgs;
-    parseArgs = calloc(NUM_PARSE, sizeof(struct thread_args));
-
-	for(i = 0; i < NUM_PARSE; ++i){
-        parseArgs[i].fetchQueue = fetchQueue;
-        parseArgs[i].searchQueue = searchQueue;
-        parseArgs[i].parseQueue = parseQueue;
-        parseArgs[i].numSites = numSites;
-        parseArgs[i].frontSite = frontSite;
-        parseArgs[i].rearSite = rearSite;
-        parseArgs[i].frontSearch = frontSearch;
-        parseArgs[i].rearSearch = rearSearch;
+			(void) pthread_join(fetchArgs[i].id, NULL);
+		}
 
 
-		(void) pthread_create(&parseArgs[i].id, NULL, (void *) &parse,&parseArgs[i]);
-        //parse(&parseArgs[i]);
-        // (void) pthread_create(&parseArgs[i].id,NULL, &parse, &parseArgs[i]);
+		struct thread_args *parseArgs;
+	    parseArgs = calloc(NUM_PARSE, sizeof(struct thread_args));
 
+		for(i = 0; i < NUM_PARSE; ++i){
+    		if (currentParse <= numSites) {
+		        parseArgs[i].fetchQueue = fetchQueue;
+		        parseArgs[i].searchQueue = searchQueue;
+		        parseArgs[i].parseQueue = parseQueue;
+		        parseArgs[i].numSites = numSites;
+		        parseArgs[i].frontSite = frontSite;
+		        parseArgs[i].rearSite = rearSite;
+		        parseArgs[i].frontSearch = frontSearch;
+		        parseArgs[i].rearSearch = rearSearch;
+		        parseArgs[i].currentChunk = currentParse;
 
-    }
+				(void) pthread_create(&parseArgs[i].id, NULL, (void *) &parse,&parseArgs[i]);
+		        //parse(&parseArgs[i]);
+		        // (void) pthread_create(&parseArgs[i].id,NULL, &parse, &parseArgs[i]);
+		        currentParse++;
+		    }
+	    }
 
-	for (i = 0; i < NUM_PARSE; ++i ){
-		// pthread_join function takes two parameters:
-		// 1. the pthread_t variable used when pthread_create was called
-		// 2. a pointer to the return value pointer
+		for (i = 0; i < NUM_PARSE; ++i ){
+			// pthread_join function takes two parameters:
+			// 1. the pthread_t variable used when pthread_create was called
+			// 2. a pointer to the return value pointer
 
-		(void) pthread_join(parseArgs[i].id, NULL);
+			(void) pthread_join(parseArgs[i].id, NULL);
+		}
 	}
 
 	/* we're done with libcurl, so clean it up */
@@ -334,11 +356,15 @@ void* fetch(struct thread_args *fetchArgs) {
 	CURL *curl_handle;
 	CURLcode res;
 
-	int currentChunk = 0;
+	int currentChunk = fetchArgs->currentChunk;
 
-	printf("%s\n", fetchArgs->fetchQueue[0]);
+	// printf("%s\n", fetchArgs->fetchQueue[0]);
 
-	while (currentChunk <= fetchArgs->numSites){ //FRONT OF LOOP
+	pthread_mutex_lock(&the_mutex);
+	while (currentChunk > numFetchSites) 		// if queue is empty, wait
+		pthread_cond_wait(&condp, &the_mutex);
+
+	if (currentChunk <= numFetchSites){ // if fetch queue is not empty
 
 		struct MemoryStruct chunk;
 
@@ -379,8 +405,10 @@ void* fetch(struct thread_args *fetchArgs) {
 			 *
 			 * Do something nice with it!
 			 */
+			chunk.url = fetchArgs->fetchQueue[currentChunk];
 			fetchArgs->parseQueue[currentChunk] = chunk;
 			currentChunk++;
+			numParseSites++;
 		}
 
 		/* cleanup curl stuff */
@@ -389,13 +417,19 @@ void* fetch(struct thread_args *fetchArgs) {
 		// free(chunk.memory);
 	    // deleteFetchQueue(fetchQueue, &frontSite, &rearSite, data);
 	}
-
-	return 0;
+	pthread_cond_signal(&condc);
+	pthread_mutex_unlock(&the_mutex);
+	pthread_exit(0);
 }
 
 void* parse(struct thread_args *parseArgs) {
-	int currentChunk = 0;
-	while (currentChunk <= parseArgs->numSites) {
+	int currentChunk = parseArgs->currentChunk;
+
+	pthread_mutex_lock(&the_mutex);
+	while (currentChunk >= numParseSites)		// if queue is empty, wait
+		pthread_cond_wait(&condc, &the_mutex);
+
+	if (currentChunk <= numParseSites) {	// if parse queue is not empty
 		int i = parseArgs->frontSearch + 1;
 
 		// if (printHTML) printf("\n%s\n\n", parseArgs->parseQueue[currentChunk].memory);
@@ -414,7 +448,7 @@ void* parse(struct thread_args *parseArgs) {
 			   tmp++;
 			}
 
-			printf("Found \"%s\" %d times.\n", parseArgs->searchQueue[i], count);
+			printf("%s:\tFound \"%s\" %d times.\n", parseArgs->parseQueue[currentChunk].url, parseArgs->searchQueue[i], count);
 
 	        //PRODUCING TIME
 	        time_t now;
@@ -433,11 +467,20 @@ void* parse(struct thread_args *parseArgs) {
 	    fprintf(fp, "%s", "\n");
 			fclose(fp);
 		printf("%lu bytes retrieved\n\n", (long)parseArgs->parseQueue[currentChunk].size);
-		free(parseArgs->parseQueue[currentChunk].memory);
+		// free(parseArgs->parseQueue[currentChunk].memory);
 		char data[80];
 		deleteFetchQueue(parseArgs->fetchQueue, &parseArgs->frontSite, &parseArgs->rearSite, data);
 		currentChunk++;
 	}
+	pthread_cond_signal(&condp);
+	pthread_mutex_unlock(&the_mutex);
+	pthread_exit(0);
+}
 
-	return 0;
+void display_message(int s){
+      signal(SIGALRM, SIG_IGN);          /* ignore this signal       */
+      printf("still threading...\n"); //The print message informs the user that the process is not complete yet
+      signal(SIGALRM, display_message);     /* reinstall the handler    */
+      // alarm(1); // a SIGALRM signal is generated every second prompting the
+      //print statment to occur.
 }
