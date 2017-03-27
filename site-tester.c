@@ -11,6 +11,7 @@
 #include <time.h>
 #include <pthread.h>
 #include "queueBuild.h"
+#include <signal.h>
 // #include <queue>
 
 
@@ -61,6 +62,12 @@ WriteMemoryCallback(void *contents, size_t size, size_t nmemb, void *userp) {
 	return realsize;
 }
 
+static volatile int keepRunning = 1;
+
+void intHandler(int status){
+	keepRunning = 0;
+}
+
 int insertFetchQueue(char fetchQueue[QMAX][80], int *rear, char data[80]);
 int deleteFetchQueue(char fetchQueue[QMAX][80], int *front, int *rear, char data[80]);
 int insertSearchQueue(char searchQueue[QMAX][80], int *rear, char data[80]);
@@ -70,240 +77,251 @@ void* parse( struct thread_args *parseArgs);
 void display_message(int s);
 
 int main(int argc, char *argv[]) {
+	// signal(SIGINT, intHandler);
 	signal(SIGALRM,display_message);
-	alarm(1);
+	// while(keepRunning) {
+		alarm(1);
 
-	// default value for param
-	int PERIOD_FETCH = 180; 					//The time (in seconds) between fetches of the various sites
-	int NUM_FETCH = 1; 							//Number of fetch threads
-	int NUM_PARSE = 1; 							//Number of parsing threads
-	char SEARCH_FILE[STRMAX] = "Search.txt"; 	//File containing the search strings
-	char SITE_FILE[STRMAX] = "Sites.txt";  		//File containing the sites to query
+		// default value for param
+		int PERIOD_FETCH = 180; 					//The time (in seconds) between fetches of the various sites
+		int NUM_FETCH = 1; 							//Number of fetch threads
+		int NUM_PARSE = 1; 							//Number of parsing threads
+		char SEARCH_FILE[STRMAX] = "Search.txt"; 	//File containing the search strings
+		char SITE_FILE[STRMAX] = "Sites.txt";  		//File containing the sites to query
 
-	int numSites = 0;
-	// int printHTML = 0;
+		int numSites = 0;
+		// int printHTML = 0;
 
-	if (argc == 2) {
-		// We assume argv[1] is a filename to open
-		FILE *file = fopen( argv[1], "r" );
+		if (argc == 2) {
+			// We assume argv[1] is a filename to open
+			FILE *file = fopen( argv[1], "r" );
+
+			/* fopen returns 0, the NULL pointer, on failure */
+			if ( file == 0 ) {
+				printf( "Could not open file\n" );
+			} else {
+				char c;
+				char variable[STRMAX];
+				char value[STRMAX];
+				int equal = 0;
+				int i = 0;
+				// read one character at a time from file, stopping at EOF
+				while  ( ( c = fgetc( file ) ) != EOF ) {
+					if (c == '=') {
+						equal = 1;
+						i = 0;
+					} else if (!equal) {
+						variable[i++] = c;
+						variable[i+1] = '\0';
+					} else if (c != '\n') {
+						value[i++] = c;
+						value[i+1] = '\0';
+					} else {
+						if (strcmp(variable, "PERIOD_FETCH") == 0) {
+							PERIOD_FETCH = atoi(value);
+						} else if (strcmp(variable, "NUM_FETCH") == 0) {
+							NUM_FETCH = atoi(value);
+							if(NUM_FETCH > 8 || NUM_FETCH < 1){
+								printf("Error: NUM_FETCH value must be between 1 and 8 and must be of type <int>\n");
+								exit(1);
+							}
+						} else if (strcmp(variable, "NUM_PARSE") == 0) {
+							NUM_PARSE = atoi(value);
+							if(NUM_PARSE > 8 || NUM_PARSE < 1){
+								printf("Error: NUM_PARSE value must be between 1 and 8 and must be of type <int>\n");
+								exit(1);
+							}
+						} else if (strcmp(variable, "SEARCH_FILE") == 0) {
+							strcpy(SEARCH_FILE, value);
+						} else if (strcmp(variable, "SITE_FILE") == 0) {
+							strcpy(SITE_FILE, value);
+						}
+
+						for (i = 0; i < sizeof(variable); i++)
+							variable[i] = '\0';
+						for (i = 0; i < sizeof(value); i++)
+							value[i] = '\0';
+						equal = 0;
+						i = 0;
+					}
+					// printf( "%s\n", value );
+				}
+				fclose( file );
+			}
+		}
+
+		printf("PERIOD_FETCH: %d\n", PERIOD_FETCH);
+		printf("NUM_FETCH: %d\n", NUM_FETCH);
+		printf("NUM_PARSE: %d\n", NUM_PARSE);
+		printf("SEARCH_FILE: %s\n", SEARCH_FILE);
+		printf("SITE_FILE: %s\n\n", SITE_FILE);
+
+		// char fetchQueue[QMAX][80];
+
+		// char data[80];
+		int frontSite = -1;
+		int rearSite = -1;
+
+		FILE *file = fopen( SITE_FILE, "r" );
 
 		/* fopen returns 0, the NULL pointer, on failure */
 		if ( file == 0 ) {
 			printf( "Could not open file\n" );
 		} else {
 			char c;
-			char variable[STRMAX];
-			char value[STRMAX];
-			int equal = 0;
+			char url[STRMAX];
 			int i = 0;
 			// read one character at a time from file, stopping at EOF
 			while  ( ( c = fgetc( file ) ) != EOF ) {
-				if (c == '=') {
-					equal = 1;
-					i = 0;
-				} else if (!equal) {
-					variable[i++] = c;
-					variable[i+1] = '\0';
-				} else if (c != '\n') {
-					value[i++] = c;
-					value[i+1] = '\0';
-				} else {
-					if (strcmp(variable, "PERIOD_FETCH") == 0) {
-						PERIOD_FETCH = atoi(value);
-					} else if (strcmp(variable, "NUM_FETCH") == 0) {
-						NUM_FETCH = atoi(value);
-					} else if (strcmp(variable, "NUM_PARSE") == 0) {
-						NUM_PARSE = atoi(value);
-					} else if (strcmp(variable, "SEARCH_FILE") == 0) {
-						strcpy(SEARCH_FILE, value);
-					} else if (strcmp(variable, "SITE_FILE") == 0) {
-						strcpy(SITE_FILE, value);
-					}
+				if (c != '\n' && c != ' ' && c != '\t') {
+					url[i++] = c;
+					url[i+1] = '\0';
 
-					for (i = 0; i < sizeof(variable); i++)
-						variable[i] = '\0';
-					for (i = 0; i < sizeof(value); i++)
-						value[i] = '\0';
-					equal = 0;
+				} else {
+					// URLQueue.push (url);
+					// printf("%s\n", url);
+
+					if(insertFetchQueue(fetchQueue, &rearSite, url) == -1) printf("Queue is full\n");
+					for (i = 0; i < sizeof(url); i++)
+						url[i] = '\0';
 					i = 0;
+					numSites++;
+					numFetchSites++;
+
 				}
-				// printf( "%s\n", value );
+				// printf("%s\n", fetchQueue[i]);
+
 			}
 			fclose( file );
+			if(insertFetchQueue(fetchQueue, &rearSite, url) == -1) printf("Queue is full\n");
 		}
-	}
 
-	printf("PERIOD_FETCH: %d\n", PERIOD_FETCH);
-	printf("NUM_FETCH: %d\n", NUM_FETCH);
-	printf("NUM_PARSE: %d\n", NUM_PARSE);
-	printf("SEARCH_FILE: %s\n", SEARCH_FILE);
-	printf("SITE_FILE: %s\n\n", SITE_FILE);
+		// printf("\n\n\n\n\n\n\n");
+		// int a, b;
+		// for (a = 0; a < QMAX; a++){
+		// 	for (b = 0; b < 80; b++){
+		// 		printf("%c", siteQueue[a][b]);
+		// 	}
+		// 	printf("\n");
+		// }
 
-	// char fetchQueue[QMAX][80];
 
-	// char data[80];
-	int frontSite = -1;
-	int rearSite = -1;
+		int frontSearch = -1;
+		int rearSearch = -1;
 
-	FILE *file = fopen( SITE_FILE, "r" );
+		file = fopen( SEARCH_FILE, "r" );
 
-	/* fopen returns 0, the NULL pointer, on failure */
-	if ( file == 0 ) {
-		printf( "Could not open file\n" );
-	} else {
-		char c;
-		char url[STRMAX];
-		int i = 0;
-		// read one character at a time from file, stopping at EOF
-		while  ( ( c = fgetc( file ) ) != EOF ) {
-			if (c != '\n' && c != ' ' && c != '\t') {
-				url[i++] = c;
-				url[i+1] = '\0';
-
-			} else {
-				// URLQueue.push (url);
-				// printf("%s\n", url);
-
-				if(insertFetchQueue(fetchQueue, &rearSite, url) == -1) printf("Queue is full\n");
-				for (i = 0; i < sizeof(url); i++)
-					url[i] = '\0';
-				i = 0;
-				numSites++;
-				numFetchSites++;
+		/* fopen returns 0, the NULL pointer, on failure */
+		if ( file == 0 ) {
+			printf( "Could not open file\n" );
+		} else {
+			char c;
+			char phrase[STRMAX];
+			int i = 0;
+			// read one character at a time from file, stopping at EOF
+			while  ( ( c = fgetc( file ) ) != EOF ) {
+				if (c != '\n') {
+					phrase[i++] = c;
+					phrase[i+1] = '\0';
+				} else {
+					if(insertSearchQueue(searchQueue, &rearSearch, phrase) == -1) printf("Queue is full\n");
+					for (i = 0; i < sizeof(phrase); i++)
+						phrase[i] = '\0';
+					i = 0;
+					// printf("%s", phrase);
+				}
 
 			}
-			// printf("%s\n", fetchQueue[i]);
+			fclose( file );
+			if(insertSearchQueue(searchQueue, &rearSearch, phrase) == -1) printf("Queue is full\n");
 
-		}
-		fclose( file );
-		if(insertFetchQueue(fetchQueue, &rearSite, url) == -1) printf("Queue is full\n");
-	}
+			// for (i = frontSearch+1; i <= rearSearch; i++)
+			// 	printf("%s\n", searchQueue[i]);
 
-	// printf("\n\n\n\n\n\n\n");
-	// int a, b;
-	// for (a = 0; a < QMAX; a++){
-	// 	for (b = 0; b < 80; b++){
-	// 		printf("%c", siteQueue[a][b]);
-	// 	}
-	// 	printf("\n");
-	// }
+			// if(deleteSearchQueue(searchQueue, &frontSearch, &rearSearch, data) != -1) printf("\n Deleted String from Queue is : %s\n", data);
 
-
-	int frontSearch = -1;
-	int rearSearch = -1;
-
-	file = fopen( SEARCH_FILE, "r" );
-
-	/* fopen returns 0, the NULL pointer, on failure */
-	if ( file == 0 ) {
-		printf( "Could not open file\n" );
-	} else {
-		char c;
-		char phrase[STRMAX];
-		int i = 0;
-		// read one character at a time from file, stopping at EOF
-		while  ( ( c = fgetc( file ) ) != EOF ) {
-			if (c != '\n') {
-				phrase[i++] = c;
-				phrase[i+1] = '\0';
-			} else {
-				if(insertSearchQueue(searchQueue, &rearSearch, phrase) == -1) printf("Queue is full\n");
-				for (i = 0; i < sizeof(phrase); i++)
-					phrase[i] = '\0';
-				i = 0;
-				// printf("%s", phrase);
-			}
-
-		}
-		fclose( file );
-		if(insertSearchQueue(searchQueue, &rearSearch, phrase) == -1) printf("Queue is full\n");
-
-		// for (i = frontSearch+1; i <= rearSearch; i++)
-		// 	printf("%s\n", searchQueue[i]);
-
-		// if(deleteSearchQueue(searchQueue, &frontSearch, &rearSearch, data) != -1) printf("\n Deleted String from Queue is : %s\n", data);
-
-		// for (i = frontSearch+1; i <= rearSearch; i++)
-		// 	printf("%s\n", searchQueue[i]);
-	}
-
-//locking, when pushing and pulling to the Queue
-//sites should be operated on one at a time
-	currentFetch = 0;
-	currentParse = 0;
-	while (currentParse <= numSites || currentFetch <= numSites) {
-
-		pthread_mutex_init(&the_mutex, NULL);	
-		pthread_cond_init(&condc, NULL);		/* Initialize consumer condition variable */
-		pthread_cond_init(&condp, NULL);		/* Initialize producer condition variable */
-
-		struct MemoryStruct parseQueue[numSites];
-
-		struct thread_args *fetchArgs;
-	    fetchArgs = calloc(NUM_FETCH, sizeof(struct thread_args));
-	    int i;
-
-		for(i = 0; i < NUM_FETCH; ++i){
-			if (currentFetch <= numSites) {
-		        fetchArgs[i].fetchQueue = fetchQueue;
-		        fetchArgs[i].searchQueue = searchQueue;
-		        fetchArgs[i].parseQueue = parseQueue;
-		        fetchArgs[i].numSites = numSites;
-		        fetchArgs[i].frontSite = frontSite;
-		        fetchArgs[i].rearSite = rearSite;
-		        fetchArgs[i].frontSearch = frontSearch;
-		        fetchArgs[i].rearSearch = rearSearch;
-		        fetchArgs[i].currentChunk = currentFetch;
-
-		        // (void) pthread_create(&fetchArgs[i].id,NULL, &fetch, &fetchArgs[i]);
-				(void) pthread_create(&fetchArgs[i].id, NULL, (void *) &fetch,&fetchArgs[i]);
-				//fetch(&fetchArgs[i]);
-				currentFetch++;
-			}
-	    }
-
-		for (i = 0; i < NUM_FETCH; ++i ){
-			// pthread_join function takes two parameters:
-			// 1. the pthread_t variable used when pthread_create was called
-			// 2. a pointer to the return value pointer
-
-			(void) pthread_join(fetchArgs[i].id, NULL);
+			// for (i = frontSearch+1; i <= rearSearch; i++)
+			// 	printf("%s\n", searchQueue[i]);
 		}
 
+	//locking, when pushing and pulling to the Queue
+	//sites should be operated on one at a time
+		currentFetch = 0;
+		currentParse = 0;
+		while (currentParse <= numSites || currentFetch <= numSites) {
 
-		struct thread_args *parseArgs;
-	    parseArgs = calloc(NUM_PARSE, sizeof(struct thread_args));
+			pthread_mutex_init(&the_mutex, NULL);
+			pthread_cond_init(&condc, NULL);		/* Initialize consumer condition variable */
+			pthread_cond_init(&condp, NULL);		/* Initialize producer condition variable */
 
-		for(i = 0; i < NUM_PARSE; ++i){
-    		if (currentParse <= numSites) {
-		        parseArgs[i].fetchQueue = fetchQueue;
-		        parseArgs[i].searchQueue = searchQueue;
-		        parseArgs[i].parseQueue = parseQueue;
-		        parseArgs[i].numSites = numSites;
-		        parseArgs[i].frontSite = frontSite;
-		        parseArgs[i].rearSite = rearSite;
-		        parseArgs[i].frontSearch = frontSearch;
-		        parseArgs[i].rearSearch = rearSearch;
-		        parseArgs[i].currentChunk = currentParse;
+			struct MemoryStruct parseQueue[numSites];
 
-				(void) pthread_create(&parseArgs[i].id, NULL, (void *) &parse,&parseArgs[i]);
-		        //parse(&parseArgs[i]);
-		        // (void) pthread_create(&parseArgs[i].id,NULL, &parse, &parseArgs[i]);
-		        currentParse++;
+			struct thread_args *fetchArgs;
+		    fetchArgs = calloc(NUM_FETCH, sizeof(struct thread_args));
+		    int i;
+
+			for(i = 0; i < NUM_FETCH; ++i){
+				if (currentFetch <= numSites) {
+			        fetchArgs[i].fetchQueue = fetchQueue;
+			        fetchArgs[i].searchQueue = searchQueue;
+			        fetchArgs[i].parseQueue = parseQueue;
+			        fetchArgs[i].numSites = numSites;
+			        fetchArgs[i].frontSite = frontSite;
+			        fetchArgs[i].rearSite = rearSite;
+			        fetchArgs[i].frontSearch = frontSearch;
+			        fetchArgs[i].rearSearch = rearSearch;
+			        fetchArgs[i].currentChunk = currentFetch;
+
+			        // (void) pthread_create(&fetchArgs[i].id,NULL, &fetch, &fetchArgs[i]);
+					(void) pthread_create(&fetchArgs[i].id, NULL, (void *) &fetch,&fetchArgs[i]);
+					//fetch(&fetchArgs[i]);
+					currentFetch++;
+				}
 		    }
-	    }
 
-		for (i = 0; i < NUM_PARSE; ++i ){
-			// pthread_join function takes two parameters:
-			// 1. the pthread_t variable used when pthread_create was called
-			// 2. a pointer to the return value pointer
+			for (i = 0; i < NUM_FETCH; ++i ){
+				// pthread_join function takes two parameters:
+				// 1. the pthread_t variable used when pthread_create was called
+				// 2. a pointer to the return value pointer
 
-			(void) pthread_join(parseArgs[i].id, NULL);
+				(void) pthread_join(fetchArgs[i].id, NULL);
+			}
+
+
+			struct thread_args *parseArgs;
+		    parseArgs = calloc(NUM_PARSE, sizeof(struct thread_args));
+
+			for(i = 0; i < NUM_PARSE; ++i){
+	    		if (currentParse <= numSites) {
+			        parseArgs[i].fetchQueue = fetchQueue;
+			        parseArgs[i].searchQueue = searchQueue;
+			        parseArgs[i].parseQueue = parseQueue;
+			        parseArgs[i].numSites = numSites;
+			        parseArgs[i].frontSite = frontSite;
+			        parseArgs[i].rearSite = rearSite;
+			        parseArgs[i].frontSearch = frontSearch;
+			        parseArgs[i].rearSearch = rearSearch;
+			        parseArgs[i].currentChunk = currentParse;
+
+					(void) pthread_create(&parseArgs[i].id, NULL, (void *) &parse,&parseArgs[i]);
+			        //parse(&parseArgs[i]);
+			        // (void) pthread_create(&parseArgs[i].id,NULL, &parse, &parseArgs[i]);
+			        currentParse++;
+			    }
+		    }
+
+			for (i = 0; i < NUM_PARSE; ++i ){
+				// pthread_join function takes two parameters:
+				// 1. the pthread_t variable used when pthread_create was called
+				// 2. a pointer to the return value pointer
+
+				(void) pthread_join(parseArgs[i].id, NULL);
+			}
 		}
-	}
 
-	/* we're done with libcurl, so clean it up */
-	curl_global_cleanup();
+		/* we're done with libcurl, so clean it up */
+		curl_global_cleanup();
+	//}
 
 	return 0;
 }
