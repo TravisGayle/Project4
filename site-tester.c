@@ -99,6 +99,7 @@ int main(int argc, char *argv[]) {
 			/* fopen returns 0, the NULL pointer, on failure */
 			if ( file == 0 ) {
 				printf( "Could not open file\n" );
+				exit(-1);
 			} else {
 				char c;
 				char variable[STRMAX];
@@ -167,6 +168,7 @@ int main(int argc, char *argv[]) {
 		/* fopen returns 0, the NULL pointer, on failure */
 		if ( file == 0 ) {
 			printf( "Could not open file\n" );
+			exit(-1);
 		} else {
 			char c;
 			char url[STRMAX];
@@ -214,6 +216,7 @@ int main(int argc, char *argv[]) {
 		/* fopen returns 0, the NULL pointer, on failure */
 		if ( file == 0 ) {
 			printf( "Could not open file\n" );
+			exit(-1);
 		} else {
 			char c;
 			char phrase[STRMAX];
